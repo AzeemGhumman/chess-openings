@@ -1,0 +1,27 @@
+node_modules/
+app/node_modules/
+app/dist/
+.DS_Store
+*.local
+
+# Nested repos (not submodules)
+chess-openings/
+chessground/
+
+# Claude local config
+.claude/
+
+# Analysis build artifacts and results
+analysis/AWS/.aws-sam/
+analysis/__pycache__/
+analysis/results/
+analysis/find-players/__pycache__/
+analysis/lambda-user-mistakes/__pycache__/
+analysis/AWS/src/**/__pycache__/
+
+# Stockfish binaries (too large for git — fetched from S3 in CI)
+app/public/stockfish/*.wasm
+analysis/AWS/layers/stockfish/stockfish/stockfish
+
+# OAuth / secrets
+client_secret_*.json

@@ -1,0 +1,93 @@
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 217.2 32.7% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.7% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.7% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.7% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.7% 17.5%;
+    --input: 217.2 32.7% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Chessground overrides */
+.cg-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: block;
+}
+
+/* Board coordinate labels (rendered by ChessBoard.tsx as React spans) */
+.board-coord.on-dark-sq  { color: #ffffff; }
+.board-coord.on-light-sq { color: #5a3e1b; }
+
+/* Dark mode board — slate blue skin */
+.dark cg-board {
+  background-color: #d0e6f0;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 2' shape-rendering='crispEdges'><rect x='1' width='1' height='1' fill='%234a7a9b'/><rect y='1' width='1' height='1' fill='%234a7a9b'/></svg>");
+  background-size: 25% 25%;
+}
+.dark cg-board square.last-move {
+  background-color: rgba(100, 200, 120, 0.4);
+}
+.dark cg-board square.selected {
+  background-color: rgba(80, 200, 120, 0.5);
+}
+.dark cg-board square.move-dest {
+  background: radial-gradient(rgba(250, 180, 0, 0.7) 22%, rgba(220, 150, 0, 0.9) 0, rgba(0, 0, 0, 0.1) 0, rgba(0, 0, 0, 0) 0);
+}
+.dark cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, rgba(250, 180, 0, 0.65) 80%);
+}
+.dark cg-board square.move-dest:hover,
+.dark cg-board square.move-dest.hover {
+  background-color: rgba(250, 180, 0, 0.4);
+}
+/* Dark mode coord label colors */
+.dark .board-coord.on-dark-sq  { color: #e8f4fa; }
+.dark .board-coord.on-light-sq { color: #1e4a62; }

@@ -1,0 +1,269 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Chess openings backend API (users + game analysis)
+
+Parameters:
+  CorsAllowOrigin:
+    Type: String
+    Default: "*"
+    Description: Allowed CORS origin for browser clients (set to frontend domain in production)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    Timeout: 900
+    MemorySize: 2048
+    Tracing: Active
+    Environment:
+      Variables:
+        USERS_TABLE_NAME: !Ref ChessOpeningUsersTable
+        USER_GAMES_TABLE_NAME: !Ref ChessOpeningUserGamesTable
+        ANALYZE_JOB_QUEUE_URL: !Ref AnalyzeJobsQueue
+        CORS_ALLOW_ORIGIN: !Ref CorsAllowOrigin
+        STOCKFISH_PATH: /opt/stockfish/stockfish
+        ANALYZE_GAMES_COUNT: "10"
+        ANALYZE_TIME_CONTROL: blitz
+        ANALYZE_DEPTH: "12"
+        ANALYZE_MISTAKE_THRESHOLD: "100"
+        ANALYZE_BLUNDER_THRESHOLD: "300"
+
+Resources:
+  ChessOpeningApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: chess-opening-api
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: GoogleTokenAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          GoogleTokenAuthorizer:
+            FunctionArn: !GetAtt GoogleAuthorizerFunction.Arn
+            FunctionPayloadType: TOKEN
+            Identity:
+              Header: Authorization
+              ReauthorizeEvery: 0
+      Cors:
+        AllowMethods: "'OPTIONS,POST,GET'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: !Sub "'${CorsAllowOrigin}'"
+      GatewayResponses:
+        UNAUTHORIZED:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+        ACCESS_DENIED:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+
+  ChessOpeningUsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: chess-opening-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+  ChessOpeningUserGamesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: chess-opening-user-games
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: game_timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+        - AttributeName: game_timestamp
+          KeyType: RANGE
+
+  AnalyzeJobsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: chess-opening-analyze-jobs
+      VisibilityTimeout: 960
+      MessageRetentionPeriod: 1209600
+
+  UpdateUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-update-user
+      CodeUri: src/update_user/
+      Handler: app.lambda_handler
+      Events:
+        UpdateUserApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChessOpeningApi
+            Path: /user
+            Method: POST
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ChessOpeningUsersTable.Arn
+
+  GoogleAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-google-authorizer
+      CodeUri: src/google_authorizer/
+      Handler: app.lambda_handler
+      Environment:
+        Variables:
+          GOOGLE_CLIENT_IDS: "253167513473-dn63puhmfaiqhcvo9b97odugt51s88u7.apps.googleusercontent.com"
+
+  StockfishLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: chess-opening-stockfish-layer
+      Description: Stockfish binary for analyze user games lambda
+      ContentUri: layers/stockfish/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
+  SubmitAnalyzeJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-submit-analyze-job
+      CodeUri: src/submit_analyze_job/
+      Handler: app.lambda_handler
+      Events:
+        AnalyzeUserApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChessOpeningApi
+            Path: /analyze-user-games
+            Method: POST
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ChessOpeningUsersTable.Arn
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt AnalyzeJobsQueue.Arn
+
+  GetUserGamesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-get-user-games
+      CodeUri: src/get_user_games/
+      Handler: app.lambda_handler
+      Events:
+        GetUserGamesApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChessOpeningApi
+            Path: /user-games
+            Method: GET
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt ChessOpeningUsersTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt ChessOpeningUserGamesTable.Arn
+
+  GetMeSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-get-me-summary
+      CodeUri: src/get_me_summary/
+      Handler: app.lambda_handler
+      Events:
+        GetMeSummaryApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChessOpeningApi
+            Path: /me/summary
+            Method: GET
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt ChessOpeningUsersTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt ChessOpeningUserGamesTable.Arn
+
+  AnalyzeUserGamesWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: chess-opening-analyze-user-games-worker
+      CodeUri: src/analyze_user_games/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref StockfishLayer
+      Events:
+        AnalyzeJobsQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AnalyzeJobsQueue.Arn
+            BatchSize: 1
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:BatchWriteItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ChessOpeningUserGamesTable.Arn
+
+Outputs:
+  ApiBaseUrl:
+    Description: API Gateway base URL
+    Value: !Sub "https://${ChessOpeningApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  UpdateUserEndpoint:
+    Value: !Sub "https://${ChessOpeningApi}.execute-api.${AWS::Region}.amazonaws.com/prod/user"
+  AnalyzeUserGamesEndpoint:
+    Value: !Sub "https://${ChessOpeningApi}.execute-api.${AWS::Region}.amazonaws.com/prod/analyze-user-games"
+  GetUserGamesEndpoint:
+    Value: !Sub "https://${ChessOpeningApi}.execute-api.${AWS::Region}.amazonaws.com/prod/user-games"
+  GetMeSummaryEndpoint:
+    Value: !Sub "https://${ChessOpeningApi}.execute-api.${AWS::Region}.amazonaws.com/prod/me/summary"

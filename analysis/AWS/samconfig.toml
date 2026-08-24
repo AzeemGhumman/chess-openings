@@ -1,0 +1,10 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "chess-openings"
+resolve_s3 = true
+s3_prefix = "chess-openings"
+region = "us-east-1"
+profile = "personal"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
