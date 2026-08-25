@@ -25,3 +25,6 @@ analysis/AWS/layers/stockfish/stockfish/stockfish
 
 # OAuth / secrets
 client_secret_*.json
+
+# IAM policies (local reference only)
+chess-openings-github-actions-policy.json
